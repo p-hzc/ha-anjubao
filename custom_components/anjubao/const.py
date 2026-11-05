@@ -8,10 +8,16 @@ APP_SECRET = "2234195B08404511BFF3BD5E23AAD8C6"
 APP_VERSION = "Version:1.4.0-20230330.release"
 USER_AGENT = "okhttp/4.7.2"
 
-# 两个域名都支持 HTTPS（WoTrus OV 证书，链到 Sectigo/USERTrust 根），
-# 不能再走 http：登录体里有手机号与密码摘要，之后每个请求都带 accessToken。
+# 登录 / 续期走 HTTPS。plus.anjubao.net 的 443 上有完整的业务路由，
+# 登录体里的手机号与密码摘要不再明文过网。
 BASE_ENTRANCE = "https://plus.anjubao.net/entrance_guard/api/app"
-BASE_CLOUD = "https://shcp.dyajb.com"
+
+# 云端业务接口只能走 HTTP：shcp.dyajb.com 的 443 端口虽然挂着
+# *.dyajb.com 的 WoTrus 证书，但 nginx 没有为这套 API 配置 server block
+# （根路径 403、/api/v1/* 与 /mpush/* 全部 404），只有 80 端口可用。
+# App 1.7.2 自己的 dex 里该域名也全部是 http://，没有 https 版本。
+# 这是厂商服务端的限制，不是客户端可以单方面升级的；详见 SECURITY.md。
+BASE_CLOUD = "http://shcp.dyajb.com"
 
 LOGIN_PATH = "/v2/user/login"
 REFRESH_PATH = "/v2/user/refreshToken"

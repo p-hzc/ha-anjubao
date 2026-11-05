@@ -60,6 +60,10 @@
 `appauth` 换取一次性票据 → MQTT CONNACK rc=0 → `device/property_set` 返回 code=0 →
 `device/property_report` 实时上报 → 回读状态一致。
 
+> 登录与续期走 HTTPS；后续云端业务接口只能走 HTTP —— `shcp.dyajb.com` 的 443
+> 虽然有证书，但 nginx 上没有这套 API（`/api/v1/*`、`/mpush/*` 全 404），
+> App 自己也是明文。原因与影响见 [SECURITY.md](SECURITY.md)。
+
 窗帘与场景的报文虽然按 App 字节码逐条比对实现、也在本地模拟网关上验证过，
 但**没有在真实网关上执行过**（会真的动设备），所以这一版不加载对应平台，
 详见下一节。
