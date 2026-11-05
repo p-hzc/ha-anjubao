@@ -2,6 +2,41 @@
 
 版本号遵循 `主版本.次版本.修订号`。所有条目按「新增 / 修复 / 变更」归类。
 
+## 0.10.0
+
+三个此前被 `ENABLE_COVER_SCENE = False` 关掉的平台全部在真机上验证并启用，
+同时把历史遗留的错误 entity_id 迁移成按中文名生成的拼音。
+
+### 新增
+
+- **窗帘平台**（`cover`）。客厅窗帘两个回路各一个实体，支持开 / 关 / 停。
+  开合走 `device/property_set`（`property_type 0`，1=开、0=关），
+  停止走 `service/call`（`service_type 1`、`value 1`），三者在真机上均返回
+  `code=0` 且网关回读一致。窗帘没有开合度上报，按 `assumed_state` 处理。
+- **场景平台**（`scene`）。从网关 `scene/sync` 拉取场景，实测返回 9 个
+  （回家 / 离家 / 睡觉 / 用餐 / 学习 / 娱乐 / 会客 / 起床 / 影视），
+  每个场景一个实体，激活下发 `scene/set`。实测 `scene/set_reply code=0`，
+  并收到 `device/property_report` 推送，HA 侧状态同步。
+- **场景面板按键平台**（`button`）。`门口4控` 的 4 个按键（`property_type 18`
+  绑场景 uuid）各生成一个无状态 button，按一下执行绑定场景。
+  没有做成 switch，因为这类按键没有开 / 关状态。
+- 集成选项里恢复「创建窗帘实体」「创建场景实体」两个开关。
+
+### 修复
+
+- **窗帘回路名重复**：网关给的 `endpointname` 是「窗帘1」，与设备名
+  「客厅窗帘」组合后变成「客厅窗帘 窗帘1」。现在多回路命名会剥掉与设备名
+  重复的词，显示「客厅窗帘 1 / 2」。
+- **历史实体 ID 是 mac 尾巴 + 回路号**（如 `light.3ae1f5_hui_lu_1`），
+  那是早期版本用错误名字注册留下的。已通过 HA 官方
+  `config/entity_registry/update` 批量迁移成按中文名生成的拼音
+  （`light.ke_ting_dan_kong`），保留 `unique_id`、设备关联与统计，
+  不需要删集成重加，重启后 ID 保持。
+
+### 变更
+
+- `const.ENABLE_COVER_SCENE` 置为 `True`，并记录真机验证结论。
+
 ## 0.9.0
 
 真机联调（HA 2025.1.4 + 网关 AJB-G4 / 固件 AJB.N.8.4057.20250910）后，

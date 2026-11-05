@@ -146,6 +146,20 @@ def _merge_devices(
     return list(merged.values())
 
 
+def _endpoint_label(device_name: str, endpoint_name: str, index: int) -> str:
+    """多回路设备的回路名，剥掉与设备名重复的词。
+
+    网关给的 endpointname 往往是「窗帘1」「灯1」，与设备名组合后
+    会变成「客厅窗帘 窗帘1」这种叠字，去掉重复部分只留序号。
+    """
+    label = endpoint_name.strip()
+    if label and len(device_name) >= 2:
+        tail = device_name[-2:]
+        if label.startswith(tail) and len(label) > len(tail):
+            label = label[len(tail):].strip()
+    return label or f"回路{index}"
+
+
 @dataclass
 class Endpoint:
     """设备的一个回路（或场景面板的一个按键）。"""
@@ -373,7 +387,9 @@ class AnjubaoCoordinator(DataUpdateCoordinator[AnjubaoSnapshot]):
                 item = Endpoint(
                     mac=mac,
                     index=int(endpoint.get("index", 1)),
-                    name="" if single else (endpoint_name or f"回路{endpoint.get('index')}"),
+                    name=""
+                    if single
+                    else _endpoint_label(device_name, endpoint_name, endpoint.get("index", 1)),
                     room="" if room in PLACEHOLDER_ROOMS else room,
                     dev_type=dev_type,
                     device_name=device_name,

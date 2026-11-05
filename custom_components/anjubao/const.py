@@ -45,12 +45,15 @@ DEFAULT_LAN_PORT = 8000
 DEFAULT_CREATE_COVERS = True
 DEFAULT_CREATE_SCENES = True
 
-# 窗帘 / 场景 / 场景按键的报文虽然按 App 字节码逐条比对过、也在本地模拟网关上验证过，
-# 但还没在真实网关上跑过。HACS 审核要求「真机验证过，或者别随版本发布」，
-# 所以先不加载这三个平台，只发灯。
-# 真机验证 open / close / stop 与 scene/set 之后，把这里改成 True 即可全部恢复
-# （coordinator 会重新拉场景、config_flow 会重新出现两个开关）。
-ENABLE_COVER_SCENE = False
+# 窗帘 / 场景 / 场景按键三个平台。
+# 2026-11-06 在真机（AJB-G4 / AJB.N.8.4057.20250910）上逐条验证通过：
+#   窗帘开/关      -> device/property_set，property_type 0，value 1/0，回读一致
+#   窗帘停         -> service/call，service_type 1、value 1，service/call_reply code=0
+#   场景执行       -> scene/set，scene/set_reply code=0，并推送 device/property_report
+#   场景列表       -> scene/sync，返回 9 个场景（回家/离家/睡觉/用餐/学习/娱乐/会客/起床/影视）
+#   面板按键       -> 门口4控 4 个 endpoint 带 property_type 18 的场景绑定
+# 全部走 /receive_message + JSON 里的 subject，与灯控一致。
+ENABLE_COVER_SCENE = True
 
 # 主题
 TOPIC_PUB = "/app/req/{user_id}"
