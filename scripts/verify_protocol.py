@@ -82,28 +82,46 @@ check(
     },
 )
 
-# 4) 局域网侧：property_set 的云端写法要转成 App 原生 onoff
+# 4) 局域网侧：控制报文与云端同构（properties 写法）
+#    真机实测：onoff / level 扁平写法网关不回复也不执行，见 lan.py 顶部注释
 check(
-    "lan normalize open -> onoff",
-    lan.AnjubaoLan._normalize_control(protocol.build_property_set(MAC, DEV_TYPE, 1, {0: 1})),
-    {"mac": MAC, "dev_type": 31, "endpoints": [{"index": 1, "onoff": 1}]},
-)
-
-# 5) 局域网侧：service/call 不带 properties，必须原样透传
-check(
-    "lan normalize stop -> untouched",
-    lan.AnjubaoLan._normalize_control(protocol.build_service_call(MAC, DEV_TYPE, 1, 1, 1)),
+    "lan set body -> properties",
+    lan.AnjubaoLan._set_body(MAC, DEV_TYPE, 1, {0: 1}),
     {
         "mac": MAC,
         "dev_type": 31,
-        "endpoints": [{"index": 1, "service_type": 1, "value": 1}],
+        "endpoints": [{"index": 1, "properties": [{"property_type": 0, "value": 1}]}],
     },
 )
 
-# 6) 路由：控制类 subject 直接当路由，其余走 receive_message
-print(f"{'PASS' if 'service/call' in lan.DIRECT_SUBJECT_ROUTES else 'FAIL'}  service/call 走直连路由")
-print(f"{'PASS' if 'device/property_set' in lan.DIRECT_SUBJECT_ROUTES else 'FAIL'}  device/property_set 走直连路由")
-print(f"{'PASS' if 'heartbeat' not in lan.DIRECT_SUBJECT_ROUTES else 'FAIL'}  heartbeat 走 receive_message")
+# 5) 局域网侧：调光同时带开关与亮度
+check(
+    "lan set body -> onoff + level",
+    lan.AnjubaoLan._set_body(MAC, 34, 2, {0: 1, 2: 60}),
+    {
+        "mac": MAC,
+        "dev_type": 34,
+        "endpoints": [
+            {
+                "index": 2,
+                "properties": [
+                    {"property_type": 0, "value": 1},
+                    {"property_type": 2, "value": 60},
+                ],
+            }
+        ],
+    },
+)
+
+# 6) 路由：所有指令统一走 receive_message，subject 放在 JSON 里
+print(f"{'PASS' if not lan.DIRECT_SUBJECT_ROUTES else 'FAIL'}  所有指令走 receive_message")
+if lan.DIRECT_SUBJECT_ROUTES:
+    failures.append("所有指令走 receive_message")
+check(
+    "指令外壳带 subject / msg_id / homeid",
+    lan.AnjubaoLan._envelope("device/property_set", 7, {"mac": MAC}, "HOME"),
+    {"subject": "device/property_set", "msg_id": 7, "mac": MAC, "homeid": "HOME"},
+)
 
 # 7) 设备类型表（App 分发表 30 种 + 实测设备里遇到的 28）
 check("设备类型表 31 种", len(devtypes.DEVICE_TYPES), 31)
@@ -121,10 +139,11 @@ check("未收录类型按开关兜底", devtypes.is_light(200), True)
 
 # 8) 场景报文
 check("scene/set 报文体", protocol.build_scene_set("gohome_abc"), {"scene_uuid": "gohome_abc"})
-check("scene/set 走直连路由", "scene/set" in lan.DIRECT_SUBJECT_ROUTES, True)
-check("scene/sync 走直连路由", "scene/sync" in lan.DIRECT_SUBJECT_ROUTES, True)
-check("scene/sync 不被端点转换改动", lan.AnjubaoLan._normalize_control({"subject": "scene/sync", "msg_id": 1}),
-      {"subject": "scene/sync", "msg_id": 1})
+check(
+    "scene/set 外壳",
+    lan.AnjubaoLan._envelope("scene/set", 9, protocol.build_scene_set("gohome_abc"), "HOME"),
+    {"subject": "scene/set", "msg_id": 9, "scene_uuid": "gohome_abc", "homeid": "HOME"},
+)
 
 print()
 if failures:

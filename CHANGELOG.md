@@ -2,6 +2,37 @@
 
 版本号遵循 `主版本.次版本.修订号`。所有条目按「新增 / 修复 / 变更」归类。
 
+## 0.9.0
+
+真机联调（HA 2025.1.4 + 网关 AJB-G4 / 固件 AJB.N.8.4057.20250910）后，
+修正了局域网通道两处与反编译结论不符的地方，并修好云端兜底的握手崩溃。
+
+### 修复
+
+- **局域网开关完全无法操作**。早期实现照反编译结论，把控制指令的 subject 当路由用，
+  发到 `/lan/35/{gwno}/device/property_set`，并把 `properties` 拍平成 `onoff` / `level`。
+  真机实测这两个做法网关都不认：**既不回包也不执行**（回读状态仍是旧值）。
+  对照组把同样的指令改成 `/lan/{gwtype}/{gwno}/receive_message` + JSON 里的
+  `subject`，立刻收到 `{"subject":"device/property_set_reply","code":0}`
+  并推送 `device/property_report`，物理回路同步动作。
+  现局域网与控制指令已全部统一走 `receive_message`，报文体与云端同构
+  （`endpoints[].properties[{property_type,value}]`），`onoff` / `level` 写法删除。
+  `scene/sync`、`scene/set`、`service/call` 同理。
+- **设备和实体的名称没有写进 HA**。`devices/property_get` 返回的设备名是 `devname`、
+  回路名是 `endpointname`，而代码读的是 `name` 与 `devname`，全部取空后退化成
+  mac 后 6 位与「回路N」。同时 `_async_refresh_topology` 拿局域网设备清单**整体覆盖**
+  了 HTTP 清单，把 HTTP 才有的 `roomname`（房间）和 `module`（型号）一起丢掉，
+  于是设备名、区域、型号全空。现改为按 mac 合并两份清单（HTTP 提供名称/房间/型号，
+  局域网提供回路名与实时属性），并对字段名做兼容。
+- **单回路设备不再带「灯1」后缀**，直接显示设备名（`客厅单控` 而不是 `客厅单控 灯1`），
+  多回路仍保留 `灯1 / 灯2` 区分。
+- **云端 MQTT 卡在 `[Errno 9] Bad file descriptor` 无限重连**。
+  `_PinnedContext.wrap_socket` 在 paho 传入 `do_handshake_on_connect=False` 时
+  提前调用 `getpeercert()`，抛 `ValueError: handshake not done yet`；
+  paho 把这个 `ValueError` 当成「该 Python 不支持 SNI」，拿同一个已被 ssl 模块
+  `detach()` 掉的 socket 重新 wrap，于是变成 EBADF，每 60 秒刷一次日志且永远连不上。
+  现改为包装后先补握手再校验证书指纹，实测 `CONNACK rc=0` 并能稳定保持连接。
+
 ## 0.8.4
 
 修正 0.8.3 里一处**会让集成完全不可用**的错误。

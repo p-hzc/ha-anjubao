@@ -69,7 +69,23 @@ class _PinnedContext(ssl.SSLContext):
         )
         if server_side:
             return sslsock
-        der = sslsock.getpeercert(binary_form=True) or b""
+        # paho 1.6.1 用 do_handshake_on_connect=False 包装 socket，包装完才自己握手。
+        # 握手没完成时 getpeercert() 会抛 ValueError("handshake not done yet")，
+        # 而 paho 把 ValueError 当成「该 Python 不支持 SNI」，拿同一个已被 ssl 模块
+        # detach 掉的 socket 再 wrap 一次，于是变成 OSError(9, Bad file descriptor)。
+        # 旧实现正是这样卡在 EBADF 无限重连里，所以这里先补握手再取证书。
+        der = b""
+        try:
+            der = sslsock.getpeercert(binary_form=True) or b""
+        except ValueError:
+            der = b""
+        if not der:
+            try:
+                sslsock.do_handshake()
+            except (ssl.SSLError, OSError):
+                sslsock.close()
+                raise
+            der = sslsock.getpeercert(binary_form=True) or b""
         digest = hashlib.sha256(der).hexdigest()
         if digest != SERVER_CERT_PIN:
             sslsock.close()

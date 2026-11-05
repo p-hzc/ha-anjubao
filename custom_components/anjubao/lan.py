@@ -11,11 +11,12 @@
   连接（TCP，默认端口 8000）
     网关只认 PACKLEN 分帧，帧长 = 4 字节长度值 + 12（"PACKLEN:" 8 + 长度 4）
 
-  两种路由形态
-    1) 通用请求（查询、心跳）：
-       /lan/{gwtype}/{gwno}/receive_message\r\n{"subject":...,"msg_id":...,"homeid":...}
-    2) 设备控制：
-       /lan/{gwtype}/{gwno}/device/property_set\r\n{"msg_id":...,"mac":...,"dev_type":...,"endpoints":[...]}
+  路由形态（真机实测，固件 AJB.N.8.4057.20250910）
+    **所有业务指令都走同一条路由**，subject 放在 JSON 里：
+      /lan/{gwtype}/{gwno}/receive_message\r\n{"subject":...,"msg_id":...,"homeid":...}
+
+    早期文档据反编译认为「控制类指令把 subject 当路由」（/lan/../device/property_set），
+    实测这条路由网关既不回复也不执行，已废弃，见下方 DIRECT_SUBJECT_ROUTES 注释。
 
   回复
     /lan/{gwtype}/{gwno}/receive_reply\r\n{json}   对 receive_message 的回复
@@ -45,13 +46,15 @@ FRAME_MAGIC = b"PACKLEN:"
 HEADER_LEN = 12  # "PACKLEN:"(8) + 长度(4)
 
 ROUTE_RECEIVE = "/receive_message"
-ROUTE_SET = "/device/property_set"
 
-# App 把控制类指令的 subject 直接当路由用：
-#   /lan/{gwtype}/{gwno}/device/property_set\r\n{json}
-#   /lan/{gwtype}/{gwno}/service/call\r\n{json}      （窗帘停止）
-# 其余通用请求（心跳、查询）走 /receive_message，subject 放在 JSON 里。
-DIRECT_SUBJECT_ROUTES = {ROUTE_SET.lstrip("/"), "service/call", "scene/sync", "scene/set"}
+# 真机实测（AJB.N.8.4057.20250910）结论：
+#   把 subject 直接当路由，即 /lan/{gwtype}/{gwno}/device/property_set\r\n{...}，
+#   网关既不回包也不执行（开关状态回读仍是旧值）。
+#   同一条指令改成 /receive_message + JSON 里的 subject，立刻收到
+#   {"subject":"device/property_set_reply","code":0} 并推送 device/property_report。
+# scene/sync、scene/set 同理。
+# 所以这里不像早期反编译结论那样区分路由，一律走 /receive_message。
+DIRECT_SUBJECT_ROUTES: set[str] = set()
 
 
 class LanError(Exception):
@@ -390,29 +393,6 @@ class AnjubaoLan:
         _LOGGER.debug("安居家园 >>> %s", payload[:300])
         self._send_frame(payload)
 
-    @staticmethod
-    def _normalize_control(body: dict[str, Any]) -> dict[str, Any]:
-        """把云端写法 endpoints[].properties 转成局域网的 onoff / level。"""
-        endpoints = body.get("endpoints")
-        if not isinstance(endpoints, list):
-            return body
-        converted: list[Any] = []
-        for endpoint in endpoints:
-            if not isinstance(endpoint, dict) or "properties" not in endpoint:
-                converted.append(endpoint)
-                continue
-            item = {k: v for k, v in endpoint.items() if k != "properties"}
-            for prop in endpoint.get("properties") or []:
-                ptype = int(prop.get("property_type", 0))
-                if ptype == 0:
-                    item["onoff"] = int(prop.get("value") or 0)
-                elif ptype == 2:
-                    item["level"] = int(prop.get("value") or 0)
-                else:
-                    item[f"property_{ptype}"] = prop.get("value")
-            converted.append(item)
-        return {**body, "endpoints": converted}
-
     def _send_heartbeat(self) -> None:
         body = {
             "msg_id": random.randint(1, 999_999),
@@ -444,16 +424,9 @@ class AnjubaoLan:
         with self._waiters_lock:
             self._waiters[msg_id] = (event, holder)
         try:
-            if subject in DIRECT_SUBJECT_ROUTES:
-                inner: dict[str, Any] = {"subject": subject, "msg_id": msg_id}
-                if body:
-                    inner.update(self._normalize_control(body))
-                self._send_raw("/" + subject, inner)
-            else:
-                inner = {"subject": subject, "msg_id": msg_id, "homeid": self._home_id}
-                if body:
-                    inner.update(body)
-                self._send_raw(ROUTE_RECEIVE, inner)
+            self._send_raw(
+                ROUTE_RECEIVE, self._envelope(subject, msg_id, body, self._home_id)
+            )
             if not event.wait(timeout):
                 raise LanError(f"{subject} 超时未响应")
         finally:
@@ -468,23 +441,26 @@ class AnjubaoLan:
             raise LanError("局域网未连接")
         if subject == "devicelistproperty/get":
             subject = "devices/property_get"
-        if subject in DIRECT_SUBJECT_ROUTES:
-            inner: dict[str, Any] = {
-                "subject": subject,
-                "msg_id": random.randint(1, 999_999),
-            }
-            if body:
-                inner.update(self._normalize_control(body))
-            self._send_raw("/" + subject, inner)
-        else:
-            inner = {
-                "subject": subject,
-                "msg_id": random.randint(1, 999_999),
-                "homeid": self._home_id,
-            }
-            if body:
-                inner.update(body)
-            self._send_raw(ROUTE_RECEIVE, inner)
+        self._send_raw(
+            ROUTE_RECEIVE,
+            self._envelope(
+                subject, random.randint(1, 999_999), body, self._home_id
+            ),
+        )
+
+    @staticmethod
+    def _envelope(
+        subject: str,
+        msg_id: int,
+        body: dict[str, Any] | None,
+        home_id: str = "",
+    ) -> dict[str, Any]:
+        """指令外壳：subject + msg_id + homeid，业务字段平铺在同一层。"""
+        inner: dict[str, Any] = {"subject": subject, "msg_id": msg_id}
+        if body:
+            inner.update(body)
+        inner.setdefault("homeid", home_id)
+        return inner
 
     def query_states(self, timeout: float = 12.0) -> dict[str, Any]:
         """读全屋状态（局域网 subject 是 devices/property_get）。"""
@@ -498,21 +474,36 @@ class AnjubaoLan:
         properties: dict[int, Any],
         timeout: float = 10.0,
     ) -> dict[str, Any]:
-        """开关/调光。
+        """开关 / 调光。
 
-        局域网报文用的是 onoff / level 这类扁平字段，
-        与云端 endpoints[].properties[{property_type,value}] 不是一套写法。
+        报文与云端完全一致：endpoints[].properties[{property_type,value}]。
+        早期文档说局域网用 onoff / level 扁平字段，实测网关不认（不回复、状态不变），
+        已改为 properties 写法。
         """
-        endpoint: dict[str, Any] = {"index": int(index)}
-        for prop_type, value in properties.items():
-            if prop_type == 0:
-                endpoint["onoff"] = int(value)
-            elif prop_type == 2:
-                endpoint["level"] = int(value)
-            else:
-                endpoint[f"property_{prop_type}"] = value
-        body = {"mac": mac, "dev_type": int(dev_type), "endpoints": [endpoint]}
-        return self.request(ROUTE_SET.lstrip("/"), body, timeout=timeout)
+        return self.request(
+            "device/property_set",
+            self._set_body(mac, dev_type, index, properties),
+            timeout=timeout,
+        )
+
+    @staticmethod
+    def _set_body(
+        mac: str, dev_type: int, index: int, properties: dict[int, Any]
+    ) -> dict[str, Any]:
+        """device/property_set 的局域网报文体（纯函数，便于离线校验）。"""
+        return {
+            "mac": mac,
+            "dev_type": int(dev_type),
+            "endpoints": [
+                {
+                    "index": int(index),
+                    "properties": [
+                        {"property_type": int(prop_type), "value": value}
+                        for prop_type, value in sorted(properties.items())
+                    ],
+                }
+            ],
+        }
 
     # ------------------------------------------------------------------ 工具
     def _callback(self, func, *args) -> None:

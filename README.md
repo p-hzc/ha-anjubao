@@ -347,13 +347,14 @@ App，不含任何个人信息，说明见 [DISCLAIMER.md 第 4 节](DISCLAIMER.
 局域网（优先）
   发现：UDP 255.255.255.255:9000  "/lan/gateway/scan\r\n{"msg_id":1}"
   连接：TCP {网关IP}:8000，报文 = "PACKLEN:" + 4字节大端长度 + 内容
+  路由：**所有业务指令都走 receive_message**，subject 放在 JSON 里
   查询：/lan/35/{gwno}/receive_message\r\n{"subject":"devices/property_get",...}
-  控制：/lan/35/{gwno}/device/property_set\r\n{"mac":...,"endpoints":[...]}
-  窗帘停：/lan/35/{gwno}/service/call\r\n{"mac":...,"endpoints":[{index,service_type:1,value:1}]}
+  控制：/lan/35/{gwno}/receive_message\r\n{"subject":"device/property_set","mac":...,"endpoints":[{index,properties:[{property_type,value}]}]}
+  窗帘停：同上，subject 换成 service/call，endpoints=[{index,service_type:1,value:1}]
   心跳：每 5 秒一次 subject=heartbeat
   上报：/lan/35/{gwno}/send_message\r\n{"subject":"device/property_report",...}
-  场景列表：/lan/35/{gwno}/scene/sync\r\n{"subject":"scene/sync","msg_id":N}
-  执行场景：/lan/35/{gwno}/scene/set\r\n{"subject":"scene/set","msg_id":N,"scene_uuid":"..."}
+  场景列表：/lan/35/{gwno}/receive_message\r\n{"subject":"scene/sync","msg_id":N}
+  执行场景：/lan/35/{gwno}/receive_message\r\n{"subject":"scene/set","scene_uuid":"..."}
 
 云端（兜底）
   控制：/app/req/{userId}  ──>  /cloud/35/{gwno}/receive_message

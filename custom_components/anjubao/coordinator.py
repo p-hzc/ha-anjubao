@@ -72,6 +72,80 @@ def channel_online(coordinator: AnjubaoCoordinator) -> bool:
     return lan_ok or cloud_ok
 
 
+def _normalize_device(device: dict[str, Any]) -> dict[str, Any]:
+    """把局域网 devices/property_get 的设备结构对齐成 HTTP 的字段名。
+
+    两边的字段名不一样（真机实测）：
+        HTTP  device: name / type / module         endpoint: devname / roomname
+        局域网 device: devname / dev_type          endpoint: endpointname
+    局域网没有房间和型号。
+    """
+    type_value = device.get("type")
+    if type_value is None:
+        type_value = device.get("dev_type")
+    return {
+        "mac": device.get("mac"),
+        "name": device.get("name") or device.get("devname"),
+        "type": type_value,
+        "module": device.get("module"),
+        "endpoints": [
+            {
+                "index": endpoint.get("index"),
+                "devname": endpoint.get("devname") or endpoint.get("endpointname"),
+                "roomname": endpoint.get("roomname"),
+                "properties": endpoint.get("properties") or [],
+            }
+            for endpoint in device.get("endpoints") or []
+        ],
+    }
+
+
+def _merge_devices(
+    base: list[dict[str, Any]], extra: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """按 mac 合并两份设备清单，HTTP 侧字段优先，局域网侧补属性。
+
+    早期实现直接 `self.devices = devicelist` 用局域网清单覆盖 HTTP 清单，
+    而局域网清单里设备名是 devname、没有 roomname 和 module，
+    结果设备名退化成 mac 后 6 位、实体名全变成「回路N」、区域和型号全丢。
+    """
+    merged: dict[str, dict[str, Any]] = {}
+    for device in base or []:
+        mac = device.get("mac")
+        if mac:
+            merged[mac] = dict(device)
+
+    for device in extra or []:
+        shaped = _normalize_device(device)
+        mac = shaped.get("mac")
+        if not mac:
+            continue
+        target = merged.get(mac)
+        if target is None:
+            merged[mac] = shaped
+            continue
+        for key in ("name", "module", "type"):
+            if not target.get(key) and shaped.get(key):
+                target[key] = shaped[key]
+        by_index = {
+            endpoint.get("index"): endpoint for endpoint in target.get("endpoints") or []
+        }
+        for endpoint in shaped.get("endpoints") or []:
+            existing = by_index.get(endpoint.get("index"))
+            if existing is None:
+                target.setdefault("endpoints", []).append(endpoint)
+                continue
+            # 局域网侧才是权威：回路名与实时属性
+            if endpoint.get("devname"):
+                existing["devname"] = endpoint["devname"]
+            if endpoint.get("properties"):
+                existing["properties"] = endpoint["properties"]
+            if not existing.get("roomname") and endpoint.get("roomname"):
+                existing["roomname"] = endpoint["roomname"]
+
+    return list(merged.values())
+
+
 @dataclass
 class Endpoint:
     """设备的一个回路（或场景面板的一个按键）。"""
@@ -193,7 +267,9 @@ class AnjubaoCoordinator(DataUpdateCoordinator[AnjubaoSnapshot]):
         else:
             devicelist = reply.get("devicelist") or []
             if devicelist:
-                self.devices = devicelist
+                # 局域网清单只有 devname / properties，没有房间和型号；
+                # 用它补属性，但设备名、区域、型号仍以 HTTP 清单为准。
+                self.devices = _merge_devices(self.devices, devicelist)
             self._merge_devicelist(reply)
 
         if not ENABLE_COVER_SCENE:
@@ -284,13 +360,20 @@ class AnjubaoCoordinator(DataUpdateCoordinator[AnjubaoSnapshot]):
                 continue
             dev_type = int(device.get("type") or device.get("dev_type") or 0)
             kind = kind_of(dev_type)
-            device_name = device.get("name") or mac[-6:]
-            for endpoint in device.get("endpoints") or []:
+            device_name = device.get("name") or device.get("devname") or mac[-6:]
+            device_endpoints = device.get("endpoints") or []
+            # 单回路设备直接用设备名当实体名（「客厅单控」而不是「客厅单控 灯1」），
+            # 多回路才需要「灯1 / 灯2」区分。
+            single = len(device_endpoints) == 1
+            for endpoint in device_endpoints:
                 room = (endpoint.get("roomname") or "").strip()
+                endpoint_name = (
+                    endpoint.get("devname") or endpoint.get("endpointname") or ""
+                ).strip()
                 item = Endpoint(
                     mac=mac,
                     index=int(endpoint.get("index", 1)),
-                    name=endpoint.get("devname") or f"回路{endpoint.get('index')}",
+                    name="" if single else (endpoint_name or f"回路{endpoint.get('index')}"),
                     room="" if room in PLACEHOLDER_ROOMS else room,
                     dev_type=dev_type,
                     device_name=device_name,

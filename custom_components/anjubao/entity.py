@@ -17,7 +17,8 @@ class AnjubaoEntity(CoordinatorEntity[AnjubaoCoordinator]):
         super().__init__(coordinator)
         self.endpoint = endpoint
         self._attr_unique_id = f"{endpoint.mac}_{endpoint.index}"
-        self._attr_name = endpoint.name
+        # 单回路设备不设实体名，直接沿用设备名；多回路才用「灯1 / 灯2」。
+        self._attr_name = endpoint.name or None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, endpoint.mac)},
             name=endpoint.device_name,
