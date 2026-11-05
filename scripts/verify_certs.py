@@ -7,8 +7,10 @@ Run:  python scripts/verify_certs.py
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
+import ssl
 import sys
 import tempfile
 import types
@@ -51,7 +53,17 @@ def main() -> int:
     checks = [
         ("默认用内置证书", cert == mqtt.CERT_FILE and key == mqtt.KEY_FILE),
         ("内置证书文件存在", os.path.isfile(mqtt.CERT_FILE) and os.path.isfile(mqtt.KEY_FILE)),
+        ("内置服务器证书存在", os.path.isfile(mqtt.SERVER_CERT_FILE)),
     ]
+
+    # 钉扎指纹必须和内置的那张服务器证书一致，否则连不上（或说明抄错了）
+    pem = Path(mqtt.SERVER_CERT_FILE).read_text(encoding="ascii")
+    digest = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+    checks.append(("钉扎指纹与内置服务器证书一致", digest == mqtt.SERVER_CERT_PIN))
+
+    ctx = mqtt._ssl_context(None)
+    checks.append(("强制校验服务端证书", ctx.verify_mode == ssl.CERT_REQUIRED))
+    checks.append(("关闭主机名校验（按 IP 连接，改用指纹）", ctx.check_hostname is False))
 
     empty = tempfile.mkdtemp()
     checks.append(("空目录回退内置", mqtt._cert_paths(empty)[0] == mqtt.CERT_FILE))
@@ -64,7 +76,6 @@ def main() -> int:
     Path(custom, "mqttclient.crt").write_text("x", encoding="utf-8")
     Path(custom, "mqttclient.key").write_text("y", encoding="utf-8")
     checks.append(("两个都在时用自定义", mqtt._cert_paths(custom)[0].startswith(custom)))
-    checks.append(("内置证书能建 TLS 上下文", mqtt._ssl_context(None) is not None))
 
     ok = True
     for label, passed in checks:

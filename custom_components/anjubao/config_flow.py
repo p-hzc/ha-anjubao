@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_LAN_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    ENABLE_COVER_SCENE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -138,36 +139,30 @@ class AnjubaoOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
         data = {**self._entry.data, **self._entry.options}
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_LAN, default=data.get(CONF_LAN, DEFAULT_LAN)
-                    ): cv.boolean,
-                    vol.Optional(
-                        CONF_LAN_HOST, default=data.get(CONF_LAN_HOST, "")
-                    ): str,
-                    vol.Optional(
-                        CONF_LAN_PORT,
-                        default=int(data.get(CONF_LAN_PORT) or DEFAULT_LAN_PORT),
-                    ): vol.All(int, vol.Range(min=1, max=65535)),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=int(data.get(CONF_SCAN_INTERVAL) or DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(int, vol.Range(min=15, max=3600)),
-                    vol.Optional(
-                        CONF_CREATE_COVERS,
-                        default=bool(
-                            data.get(CONF_CREATE_COVERS, DEFAULT_CREATE_COVERS)
-                        ),
-                    ): cv.boolean,
-                    vol.Optional(
-                        CONF_CREATE_SCENES,
-                        default=bool(
-                            data.get(CONF_CREATE_SCENES, DEFAULT_CREATE_SCENES)
-                        ),
-                    ): cv.boolean,
-                }
-            ),
-        )
+        fields: dict[Any, Any] = {
+            vol.Optional(CONF_LAN, default=data.get(CONF_LAN, DEFAULT_LAN)): cv.boolean,
+            vol.Optional(CONF_LAN_HOST, default=data.get(CONF_LAN_HOST, "")): str,
+            vol.Optional(
+                CONF_LAN_PORT,
+                default=int(data.get(CONF_LAN_PORT) or DEFAULT_LAN_PORT),
+            ): vol.All(int, vol.Range(min=1, max=65535)),
+            vol.Optional(
+                CONF_SCAN_INTERVAL,
+                default=int(data.get(CONF_SCAN_INTERVAL) or DEFAULT_SCAN_INTERVAL),
+            ): vol.All(int, vol.Range(min=15, max=3600)),
+        }
+        # 窗帘与场景平台暂未启用，对应的开关也不必出现（见 const.ENABLE_COVER_SCENE）
+        if ENABLE_COVER_SCENE:
+            fields[
+                vol.Optional(
+                    CONF_CREATE_COVERS,
+                    default=bool(data.get(CONF_CREATE_COVERS, DEFAULT_CREATE_COVERS)),
+                )
+            ] = cv.boolean
+            fields[
+                vol.Optional(
+                    CONF_CREATE_SCENES,
+                    default=bool(data.get(CONF_CREATE_SCENES, DEFAULT_CREATE_SCENES)),
+                )
+            ] = cv.boolean
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))

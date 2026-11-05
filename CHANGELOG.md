@@ -2,6 +2,38 @@
 
 版本号遵循 `主版本.次版本.修订号`。所有条目按「新增 / 修复 / 变更」归类。
 
+## 0.8.3
+
+按 HACS 审核意见修复三条安全问题、一条资源泄漏，并收窄发布范围。
+
+### 修复
+
+- **凭据明文过网**：`plus.anjubao.net` 与 `shcp.dyajb.com` 都改成 HTTPS。
+  之前登录体里的手机号与密码摘要、每个请求上的 accessToken、以及 refreshToken
+  都是明文传输的（Base64 只是编码）。两个域名都有 WoTrus 签发、链到
+  Sectigo/USERTrust 的正规证书，改协议即可。
+- **MQTT 不校验服务端证书**：去掉 `CERT_NONE` 与 `tls_insecure_set(True)`。
+  厂商用的是自签的 1024 位 RSA 证书、按 IP 访问、证书里没有 SAN，做不了常规的
+  主机名校验，因此改为双重校验：把厂商那张证书作为唯一信任锚（`CERT_REQUIRED`），
+  再在握手后比对它的 SHA-256 指纹。指纹不符时**断开并停止重连**，不再静默降级。
+  新增 `certs/mqttserver.crt` 与 `mqtt.SERVER_CERT_PIN`。
+- **setup 失败泄漏线程与连接**：`async_setup()` 在通道建好之后才失败时
+  （例如「局域网与厂商云均无法连接」），原来只抛 `ConfigEntryNotReady`，
+  已启动的局域网线程与 MQTT 客户端留在后台。因为 MQTT 的 clientId 就是 userId，
+  HA 每次重试都会多一个同 id 客户端，互相把对方顶下线。现在任何失败都会先在
+  执行器里 `coordinator.stop()` 再抛。
+
+### 变更
+
+- **只发布 `light` 平台**：窗帘（`cover`）、App 场景（`scene`）、场景面板按键
+  （`button`）的报文虽然按 App 字节码逐条比对过、也在本地模拟网关上验证过，
+  但没在真实网关上执行过（会真的驱动电机、切换全屋灯光）。按 HACS 要求暂不加载，
+  由 `const.ENABLE_COVER_SCENE = False` 控制；真机验证后改成 `True` 即全部恢复。
+- 集成选项同步隐藏「创建窗帘实体 / 创建场景实体」，避免出现无效开关。
+- 诊断信息增加 `platforms` 字段，说明当前加载了哪些平台。
+- 新增 `scripts/verify_setup_cleanup.py`；`verify_certs.py` 增加到 9 项
+  （含指纹与内置证书一致性、`CERT_REQUIRED` 断言）。
+
 ## 0.8.2
 
 ### 新增

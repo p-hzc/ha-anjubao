@@ -18,6 +18,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
     DOMAIN,
+    ENABLE_COVER_SCENE,
 )
 from .coordinator import AnjubaoCoordinator
 from .devtypes import DEVICE_TYPES, kind_of
@@ -95,6 +96,11 @@ async def async_get_config_entry_diagnostics(
             "mac": _mask_mac(gateway.get("mac")),
             "lan_ip": gateway.get("lanip") or gateway.get("lan_ip"),
             "firmware": gateway.get("softversion") or gateway.get("version"),
+        },
+        "platforms": {
+            # 窗帘 / 场景 / 场景按键要等真机验证后才加载，这里的端点数不代表已有实体
+            "cover_scene_enabled": ENABLE_COVER_SCENE,
+            "loaded": ["light"] + (["cover", "scene", "button"] if ENABLE_COVER_SCENE else []),
         },
         "counts": {
             "devices": len(coordinator.devices),

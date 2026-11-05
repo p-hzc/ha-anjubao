@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import hashlib
 import random
 import ssl
 import threading
@@ -28,8 +29,55 @@ CERT_DIR = os.path.join(os.path.dirname(__file__), "certs")
 CERT_FILE = os.path.join(CERT_DIR, "mqttclient.crt")
 KEY_FILE = os.path.join(CERT_DIR, "mqttclient.key")
 
+# 厂商 MQTT 服务端的自签证书（CN=AJB，1024 位 RSA，2020-2120），作为唯一信任锚
+SERVER_CERT_FILE = os.path.join(CERT_DIR, "mqttserver.crt")
+# 上面那张证书的 SHA-256 指纹（DER）。服务端是按 IP 访问的、证书里也没有 SAN，
+# 没法做主机名校验，所以改成固定指纹：握手后比对，不一致立刻断开。
+SERVER_CERT_PIN = "c61a428e75cdf86fb0cd7afab3d0b844a984e4b6bcb36b54627829914c09598e"
+
 # 用户可在 HA 配置目录下放置自己的证书来覆盖内置文件，见 README「自定义证书」
 CERT_NAMES = ("mqttclient.crt", "mqttclient.key")
+
+
+class CertError(AnjubaoError):
+    """服务器证书与内置指纹不符。重试无意义，应当停下等人处理。"""
+
+
+class _PinnedContext(ssl.SSLContext):
+    """在 TLS 握手完成后校验服务器证书指纹。
+
+    cafile 只保证「证书由厂商那张自签证书签发」，指纹则保证「就是那一张」，
+    两者都过才允许上层发数据，避免中间人替换证书后读到票据与全部指令。
+    """
+
+    def wrap_socket(  # type: ignore[override]
+        self,
+        sock,
+        server_side=False,
+        do_handshake_on_connect=True,
+        suppress_ragged_eofs=True,
+        server_hostname=None,
+        session=None,
+    ):
+        sslsock = super().wrap_socket(
+            sock,
+            server_side=server_side,
+            do_handshake_on_connect=do_handshake_on_connect,
+            suppress_ragged_eofs=suppress_ragged_eofs,
+            server_hostname=server_hostname,
+            session=session,
+        )
+        if server_side:
+            return sslsock
+        der = sslsock.getpeercert(binary_form=True) or b""
+        digest = hashlib.sha256(der).hexdigest()
+        if digest != SERVER_CERT_PIN:
+            sslsock.close()
+            raise CertError(
+                f"MQTT 服务器证书指纹不符（收到 {digest}，预期 {SERVER_CERT_PIN}）。"
+                "厂商可能更换了证书，或连接正被中间人劫持，已中止连接。"
+            )
+        return sslsock
 
 
 def _make_client(client_id: str) -> mqtt.Client:
@@ -59,11 +107,16 @@ def _cert_paths(cert_dir: str | None = None) -> tuple[str, str]:
 
 
 def _ssl_context(cert_dir: str | None = None) -> ssl.SSLContext:
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    """构建强制校验服务端的 TLS 上下文（mTLS 客户端证书 + 服务器证书钉扎）。"""
+    ctx = _PinnedContext(ssl.PROTOCOL_TLS_CLIENT)
+    # 服务端按 IP 访问、证书无 SAN，无法做主机名校验；
+    # 用「cafile 信任锚 + CERT_REQUIRED + 握手后比对指纹」替代，同样能挡住中间人。
     ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    ctx.load_verify_locations(cafile=SERVER_CERT_FILE)
     try:
-        ctx.set_ciphers("DEFAULT:@SECLEVEL=0")  # 厂商证书是 1024 位 RSA
+        # 厂商证书是 1024 位 RSA，OpenSSL 3 默认 SECLEVEL=2 会直接判为 key too weak
+        ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
     except ssl.SSLError:  # pragma: no cover
         pass
     ctx.load_cert_chain(*_cert_paths(cert_dir))
@@ -137,7 +190,6 @@ class AnjubaoMqtt:
                 client = _make_client(self._user_id)
                 client.username_pw_set(self._user_id, ticket)
                 client.tls_set_context(_ssl_context(getattr(self, "_cert_dir", None)))
-                client.tls_insecure_set(True)
                 client.on_connect = self._on_connect
                 client.on_disconnect = self._on_disconnect
                 client.on_message = self._on_message
@@ -154,6 +206,14 @@ class AnjubaoMqtt:
                 _LOGGER.info("安居家园 MQTT 已连接 %s:%s", host, port)
                 while not self._stop.is_set() and self._connected.is_set():
                     time.sleep(1)
+            except (CertError, ssl.SSLCertVerificationError) as err:
+                # 证书问题重试多少次都一样，继续重连只会刷日志、反复顶掉手机 App
+                _LOGGER.error(
+                    "安居家园 MQTT 服务器证书校验失败，已停止重连：%s。"
+                    "若厂商确实更换了证书，需要更新集成版本内置的证书与指纹。",
+                    err,
+                )
+                break
             except Exception as err:  # noqa: BLE001
                 if not self._stop.is_set():
                     _LOGGER.warning("安居家园 MQTT 断开: %s（%s 秒后重连）", err, backoff)

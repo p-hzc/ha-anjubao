@@ -60,6 +60,7 @@ def main() -> int:
     sys.modules["cc"] = pkg
 
     from cc import coordinator as co
+    from cc.const import ENABLE_COVER_SCENE
 
     devices = json.load(
         open("C:/word/anju_re/reply_devicelistproperty_get.json", encoding="utf-8")
@@ -110,6 +111,7 @@ def main() -> int:
         ("2 个窗帘", len(fake.covers) == 2),
         ("27 个灯回路", len(fake.endpoints) == 27),
         ("场景按键不再进 light", all(not ep.is_scene_key for ep in fake.endpoints)),
+        ("cover/scene 平台未启用（只发灯）", ENABLE_COVER_SCENE is False),
     ]
     print()
     ok = True

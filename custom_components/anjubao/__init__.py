@@ -21,17 +21,16 @@ from .const import (
     CONF_USER_ID,
     CONF_USERNAME,
     DOMAIN,
+    ENABLE_COVER_SCENE,
 )
 from .coordinator import AnjubaoCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [
-    Platform.LIGHT,
-    Platform.COVER,
-    Platform.SCENE,
-    Platform.BUTTON,
-]
+# 灯 / 开关 / 插座先发；窗帘、场景、面板按键等真机验证过再启用，见 const.ENABLE_COVER_SCENE
+PLATFORMS: list[Platform] = [Platform.LIGHT]
+if ENABLE_COVER_SCENE:
+    PLATFORMS += [Platform.COVER, Platform.SCENE, Platform.BUTTON]
 
 SERVICE_SEND_COMMAND = "send_command"
 ATTR_SUBJECT = "subject"
@@ -64,7 +63,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_setup()
     except AnjubaoError as err:
+        # async_setup 可能已经起了局域网线程 / MQTT 客户端（比如通道建好之后
+        # 补全设备属性时才失败），不收回的话 HA 每次重试都会多留一套线程和
+        # 一条同 clientId 的连接，互相顶下线。
+        await hass.async_add_executor_job(coordinator.stop)
         raise ConfigEntryNotReady(str(err)) from err
+    except Exception:
+        await hass.async_add_executor_job(coordinator.stop)
+        raise
 
     try:
         await coordinator.async_config_entry_first_refresh()

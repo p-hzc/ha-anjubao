@@ -25,6 +25,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEV_TYPE_CURTAIN,
     DOMAIN,
+    ENABLE_COVER_SCENE,
     PLACEHOLDER_ROOMS,
     PROP_LEVEL,
     PROP_ONOFF,
@@ -195,6 +196,8 @@ class AnjubaoCoordinator(DataUpdateCoordinator[AnjubaoSnapshot]):
                 self.devices = devicelist
             self._merge_devicelist(reply)
 
+        if not ENABLE_COVER_SCENE:
+            return
         if not bool(self._entry_data.get(CONF_CREATE_SCENES, DEFAULT_CREATE_SCENES)):
             return
 

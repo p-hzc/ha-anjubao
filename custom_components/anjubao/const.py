@@ -8,8 +8,10 @@ APP_SECRET = "2234195B08404511BFF3BD5E23AAD8C6"
 APP_VERSION = "Version:1.4.0-20230330.release"
 USER_AGENT = "okhttp/4.7.2"
 
-BASE_ENTRANCE = "http://plus.anjubao.net/entrance_guard/api/app"
-BASE_CLOUD = "http://shcp.dyajb.com"
+# 两个域名都支持 HTTPS（WoTrus OV 证书，链到 Sectigo/USERTrust 根），
+# 不能再走 http：登录体里有手机号与密码摘要，之后每个请求都带 accessToken。
+BASE_ENTRANCE = "https://plus.anjubao.net/entrance_guard/api/app"
+BASE_CLOUD = "https://shcp.dyajb.com"
 
 LOGIN_PATH = "/v2/user/login"
 REFRESH_PATH = "/v2/user/refreshToken"
@@ -36,6 +38,13 @@ DEFAULT_LAN = True
 DEFAULT_LAN_PORT = 8000
 DEFAULT_CREATE_COVERS = True
 DEFAULT_CREATE_SCENES = True
+
+# 窗帘 / 场景 / 场景按键的报文虽然按 App 字节码逐条比对过、也在本地模拟网关上验证过，
+# 但还没在真实网关上跑过。HACS 审核要求「真机验证过，或者别随版本发布」，
+# 所以先不加载这三个平台，只发灯。
+# 真机验证 open / close / stop 与 scene/set 之后，把这里改成 True 即可全部恢复
+# （coordinator 会重新拉场景、config_flow 会重新出现两个开关）。
+ENABLE_COVER_SCENE = False
 
 # 主题
 TOPIC_PUB = "/app/req/{user_id}"
