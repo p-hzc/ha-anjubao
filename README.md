@@ -81,6 +81,43 @@
 
 依赖 `paho-mqtt`，HA 一般已自带；若报缺失，在 `configuration.yaml` 里确认已启用 MQTT 集成。
 
+## 图标（HA < 2026.3 需要额外一步）
+
+HA 前端把集成图标的地址写死成
+`https://brands.home-assistant.io/_/{domain}/icon.png`，自定义集成没被
+[home-assistant/brands](https://github.com/home-assistant/brands) 收录时，
+CDN 返回的是一张 “icon not available” 占位图 ——
+「设备与服务」「添加集成」、设备详情页就都是灰块。
+
+本地 `custom_components/anjubao/brand/` 目录要到 **HA 2026.3.0** 才被读取
+（此前只有 CDN 一条路）。所以在老版本上用一个小前端模块在浏览器侧换图：
+
+```
+custom_components/anjubao/brand/{icon,icon@2x,logo,logo@2x}.png   ← 图源
+www/anjubao/icon.png, logo.png                                    ← /local 静态副本
+www/anjubao/brand-fix.js                                          ← 替换脚本
+```
+
+`configuration.yaml`：
+
+```yaml
+frontend:
+  themes: !include_dir_merge_named themes
+  extra_module_url:
+    - /local/anjubao/brand-fix.js
+```
+
+重启 HA 后**强制刷新浏览器**（Ctrl+Shift+R）即可看到图标。
+
+脚本只处理 URL 同时含 `brands.home-assistant.io` 和 `/anjubao/` 的图片，
+不碰其它集成；HA 升到 2026.3+ 后本地 brand 生效，脚本替换目标不存在，自然失效，
+可以删掉 `extra_module_url` 那两行。
+
+> 想彻底摆脱这个补丁，可以把 `brand/` 里的四张图按
+> [brands 仓库规范](https://github.com/home-assistant/brands#readme) 提一个 PR
+> （icon 256/512、logo 短边 256/512，本项目现有的四张都符合）。
+> 合并后 CDN 就有图，任何 HA 版本都不用再打补丁。
+
 ## 配置
 
 设置 → 设备与服务 → 添加集成 → 搜索「安居家园 Plus」→ 输入：
