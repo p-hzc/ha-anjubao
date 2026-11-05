@@ -1,0 +1,53 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Anjubao Plus login",
+        "description": "Sign in with the phone number and password you use in the Anjubao Plus app. Devices are discovered automatically.",
+        "data": {
+          "username": "Phone number",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Anjubao",
+        "description": "The stored credentials are no longer valid. Enter your password again.",
+        "data": {
+          "username": "Phone number",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid phone number or password",
+      "cannot_connect": "Unable to reach the vendor cloud",
+      "unknown": "Unexpected error, check the logs"
+    },
+    "abort": {
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Anjubao options",
+        "description": "When the LAN gateway is reachable it is used first (faster, and frees the cloud connection). Falls back to the cloud automatically.",
+        "data": {
+          "lan": "Enable LAN direct connection",
+          "lan_host": "Gateway IP (leave empty to auto-discover)",
+          "lan_port": "Gateway port",
+          "scan_interval": "State polling interval (seconds)",
+          "create_covers": "Create curtain covers",
+          "create_scenes": "Create scene entities and panel scene buttons"
+        }
+      }
+    }
+  },
+  "services": {
+    "send_command": {
+      "name": "Send custom command",
+      "description": "Send a raw business command to the gateway."
+    }
+  }
+}

@@ -1,0 +1,23 @@
+ha-anjubao — Home Assistant 集成 for 安居家园 Plus
+Copyright (c) 2026 p-hzc
+
+本文件按 Apache-2.0 的 NOTICE 惯例提供，用于说明 MIT 许可证的适用范围。
+
+1. MIT 许可证（见 LICENSE）仅覆盖本仓库中由 p-hzc 原创的源代码与文档。
+
+2. 以下内容不属于本项目，其权利归各自所有者，MIT 许可证不适用于它们：
+   - 「安居家园」「安居宝」等名称、商标、Logo 及相关商业标识；
+   - 厂商的移动应用、服务端程序及其任何衍生物；
+   - custom_components/anjubao/const.py 中的 APP_KEY / APP_SECRET / APP_VERSION，
+     以及 custom_components/anjubao/certs/ 下的 mqttclient.crt / mqttclient.key
+     （来自厂商公开分发的 App，仅作互操作所需的必要引用）。
+
+3. 本项目与上述权利人无任何关联，未获授权、认可或支持。
+   详见 DISCLAIMER.md。
+
+4. 权利人如需下架上述第 2 条中的内容，请联系 perter_hzc@163.com，
+   作者将在收到有效通知后立即处理。
+
+This project is NOT affiliated with, endorsed by, or supported by the vendor of
+the "安居家园 Plus" mobile application. All trademarks are the property of their
+respective owners. See DISCLAIMER.md for details.

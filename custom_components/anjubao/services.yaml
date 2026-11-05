@@ -1,0 +1,29 @@
+send_command:
+  fields:
+    subject:
+      name: 业务类型
+      description: 例如 device/property_set、service/call、devicelistproperty/get
+      required: true
+      example: device/property_set
+      selector:
+        text:
+    payload:
+      name: 附加字段
+      description: 合并进报文的附加字段，例如 mac / dev_type / endpoints
+      required: false
+      example: '{"mac":"00158d00083ae1f5","dev_type":7,"endpoints":[{"index":1,"properties":[{"property_type":0,"value":1}]}]}'
+      selector:
+        object:
+    wait:
+      name: 等待回复
+      description: 是否等待网关回执（关闭后立即返回，适合高频操作）
+      required: false
+      default: true
+      selector:
+        boolean:
+    entry_id:
+      name: 配置项
+      description: 多个账号时可指定，留空使用第一个
+      required: false
+      selector:
+        text:

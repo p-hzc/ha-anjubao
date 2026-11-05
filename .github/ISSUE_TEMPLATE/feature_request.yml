@@ -1,0 +1,31 @@
+name: 功能请求
+description: 新型号设备、新的控制能力、其它 App 里的功能
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提新设备支持时，最有用的信息是**设备在 App 里的类型号和回路属性**，
+        这两项在「诊断信息」的 `device_types` 与 `entities` 里都能看到。
+  - type: textarea
+    id: what
+    attributes:
+      label: 想要什么
+      placeholder: 希望新风面板能做成 climate 实体，可以调温度和风量
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: 涉及哪些设备
+      description: App 里的设备名、类型号（如果知道），以及它在 App 里能做什么操作
+      placeholder: |
+        设备：客厅新风（type 37）
+        App 里能调：开关、温度 16–30、风量三档、模式（制冷/制热/送风）
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息（可选但强烈建议）
+      description: 设置 → 设备与服务 → 安居家园 Plus → 「⋮」→ 下载诊断信息
+      render: json

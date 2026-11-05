@@ -1,0 +1,53 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "安居家园 Plus 登录",
+        "description": "使用 App 的账号（手机号）和密码登录，设备会自动发现。",
+        "data": {
+          "username": "账号（手机号）",
+          "password": "密码"
+        }
+      },
+      "reauth_confirm": {
+        "title": "重新登录安居家园",
+        "description": "登录凭据已失效，请重新输入密码。",
+        "data": {
+          "username": "账号（手机号）",
+          "password": "密码"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "账号或密码错误",
+      "cannot_connect": "无法连接厂商服务器",
+      "unknown": "未知错误，请查看日志"
+    },
+    "abort": {
+      "already_configured": "该账号已经配置过了",
+      "reauth_successful": "重新登录成功"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "安居家园选项",
+        "description": "局域网可用时优先直连网关（响应快、不占用厂商云连接），失败自动回落云端。",
+        "data": {
+          "lan": "启用局域网直连",
+          "lan_host": "网关 IP（留空自动发现）",
+          "lan_port": "网关端口",
+          "scan_interval": "状态轮询间隔（秒）",
+          "create_covers": "创建窗帘实体（开/关/停）",
+          "create_scenes": "创建场景实体与面板场景按键"
+        }
+      }
+    }
+  },
+  "services": {
+    "send_command": {
+      "name": "发送自定义指令",
+      "description": "直接向网关发送原始业务指令。"
+    }
+  }
+}

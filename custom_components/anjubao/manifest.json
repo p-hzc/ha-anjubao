@@ -1,0 +1,21 @@
+{
+  "domain": "anjubao",
+  "name": "安居家园 Plus",
+  "categories": [
+    "hubs_protocols",
+    "lighting"
+  ],
+  "codeowners": [
+    "@p-hzc"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/p-hzc/ha-anjubao",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/p-hzc/ha-anjubao/issues",
+  "requirements": [
+    "paho-mqtt>=1.6.1"
+  ],
+  "version": "0.8.2"
+}
