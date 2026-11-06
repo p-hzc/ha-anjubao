@@ -6,7 +6,7 @@
 > 因此**可能违反你账号的服务条款，存在账号被限制的风险**，且厂商随时可能让接口失效。
 > 使用前请阅读 [免责声明与合规边界](DISCLAIMER.md) 与 [隐私说明](PRIVACY.md)。
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 [![HACS validation](https://github.com/p-hzc/ha-anjubao/actions/workflows/hacs.yaml/badge.svg)](https://github.com/p-hzc/ha-anjubao/actions/workflows/hacs.yaml)
 [![hassfest](https://github.com/p-hzc/ha-anjubao/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/p-hzc/ha-anjubao/actions/workflows/hassfest.yaml)
 [![Release](https://img.shields.io/github/v/release/p-hzc/ha-anjubao)](https://github.com/p-hzc/ha-anjubao/releases)
@@ -71,9 +71,16 @@
 
 ### HACS（推荐）
 
-1. HACS → 集成 → 右上角菜单 → 自定义存储库
-2. 仓库地址填本项目地址，类别选「集成」
-3. 搜索「安居家园 Plus」安装，重启 Home Assistant
+本仓库已收录进 **HACS 默认仓库**，不需要再添加自定义存储库：
+
+1. HACS → 搜索「安居家园」
+2. 选中后安装，重启 Home Assistant
+
+> HACS 会缓存默认仓库列表（约 5 小时刷新一次）。刚收录时可能还搜不到，
+> 到 HACS → 右上角菜单 → **重新加载数据** 再试，或先用下面的手动方式。
+>
+> 如果你之前用「自定义存储库」添加过本仓库，**请把那条删掉**，
+> 否则 HACS 里会同时出现两份同名条目。
 
 ### 手动
 
