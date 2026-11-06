@@ -111,7 +111,7 @@ def main() -> int:
         ("2 个窗帘", len(fake.covers) == 2),
         ("27 个灯回路", len(fake.endpoints) == 27),
         ("场景按键不再进 light", all(not ep.is_scene_key for ep in fake.endpoints)),
-        ("cover/scene 平台未启用（只发灯）", ENABLE_COVER_SCENE is False),
+        ("窗帘/场景/按键平台已启用", ENABLE_COVER_SCENE is True),
     ]
     print()
     ok = True
