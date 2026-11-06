@@ -36,13 +36,25 @@ async def async_setup_entry(
 
 
 class AnjubaoLight(AnjubaoEntity, LightEntity):
-    """安居宝开关/灯控回路。"""
+    """安居宝开关/灯控回路。
+
+    灯实体直接用「灯自己的名字」，不拼面板名（`has_entity_name = False`）：
+    设备叫「餐厅三控」是电工面板的编号，用户和小爱要的是「客厅顶灯」。
+    窗帘 / 面板按键仍保留设备名前缀，因为它们的回路名只是「1 / 2 / 回家」，
+    单独拿出来没有意义。
+    """
 
     _attr_supported_color_modes = {ColorMode.ONOFF}
     _attr_color_mode = ColorMode.ONOFF
+    _attr_has_entity_name = False
 
     def __init__(self, coordinator: AnjubaoCoordinator, endpoint: Endpoint) -> None:
         super().__init__(coordinator, endpoint)
+        # 单回路设备网关不给回路名，退回设备名；
+        # 多回路设备若网关也没给名字（只会生成「回路N」），补上设备名避免重名。
+        self._attr_name = endpoint.name or endpoint.device_name
+        if self._attr_name.startswith("回路"):
+            self._attr_name = f"{endpoint.device_name} {self._attr_name}"
         self._dimmer = is_dimmer(endpoint.dev_type)
         if self._dimmer:
             self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
